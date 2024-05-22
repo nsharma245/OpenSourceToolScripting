@@ -50,19 +50,22 @@ check_file_exists(){
 
 #Function to check the file data
 check_file_data() {
-    echo "________$1 __________"
-    header=$(head -n 1 "$1")
-    echo "$header"
-    # report the invalid lines to stdout
-    awk -F'\t' -v file_name="$1" '
-    NR == 1 { header_fields = NF }
-    NR > 1 { 
-        if (NF != header_fields) 
-             print "Invalid Line " NR " "NF" in file " file_name ": Field count mismatch."
-    }' "$1"
     
     input_file="$1"
+    header=$(head -n 1 "$1")
+    num_columns=$(echo -e "$header" | tr '\t' '\n' | wc -l)
+    
+   # Report the invalid lines to stdout
+    awk -F'\t' -v file_name="$input_file" '
+        NR == 1 { header_fields = NF }
+        NR > 1 { 
+            if (NF != header_fields) 
+                print "Invalid Line " NR " in file [" file_name " ] Field count mismatch. Number of fields: " NF
+        }' "$input_file"
+
+    
     output_file="TEST_${input_file}"
+
     
     # Check if the last field of the header contains "Continent" and remove it
     last_field=$(awk -F '\t' 'NR==1 {print $NF}' "$input_file")
@@ -116,37 +119,6 @@ else
             if is_tsv "$file"; then
                 
                 check_file_data "$file"
-                
-                # Define input files
-                GDP_FILE="TEST_gdp.tsv"
-                LIFE_FILE="TEST_life.tsv"
-                HOME_FILE="TEST_homicide.tsv"
-                OUTPUT_FILE="clean_data_test.tsv"
-
-            
-               
-                # Extract headers from the first file
-                HEADERS=$(head -n 1 "$LIFE_FILE")
-                
-                # Append columns from the second file to the headers, excluding the first three columns
-                SECOND_FILE_HEADERS=$(head -n 1 "$GDP_FILE" | cut -f4-)
-                
-                # Combine headers with columns from the second file
-                HEADERS="$HEADERS"$'\t'"$SECOND_FILE_HEADERS"
-
-                
-                # Write headers to the output file
-                echo -e "$HEADERS" > "$OUTPUT_FILE"
-                # # Use awk to join first 2 files 
-                awk -F'\t' 'NR==FNR {a[$1$2$3]=$0; next} ($1$2$3 in a) {print a[$1$2$3] "\t" substr($0, index($0, $4))}' OFS='\t' "$LIFE_FILE" "$GDP_FILE" | tail -n +2 >> "$OUTPUT_FILE"
-
-                #Append columns from the third file to the headers, excluding the first three columns
-                THIRD_FILE_HEADERS=$(head -n 1 "$HOME_FILE" | cut -f4-)
-                
-                HEADERS="$HEADERS"$'\t'"$THIRD_FILE_HEADERS"
-                # Use awk to join files based on the first three columns
-                awk -F'\t' 'NR==FNR {a[$1$2$3]=$0; next} ($1$2$3 in a) {print a[$1$2$3] "\t" substr($0, index($0, $4))}' OFS='\t' "$OUTPUT_FILE" "$HOME_FILE" | tail -n +2 >> "final.tsv"
-
 
             else
                 echo "Error: $file is not in tab-separated format or the number of argumnets are not same as required"
@@ -158,31 +130,69 @@ else
 
     done
 
+    # Define input files
+    GDP_FILE="TEST_"$1
+    LIFE_FILE="TEST_"$2
+    HOME_FILE="TEST_"$3
+    OUTPUT_FILE="clean_data_test.tsv"
+    FINAL_OUTPUT="final_output.tsv"
+
+
+    rm -f "$OUTPUT_FILE" "$FINAL_OUTPUT"
+
+    sort -o "$LIFE_FILE" -t $'\t' -k1,1 -k2,2 -k3,3 "$LIFE_FILE"
+    sort -o "$GDP_FILE" -t $'\t' -k1,1 -k2,2 -k3,3 "$GDP_FILE"
+    sort -o "$HOME_FILE" -t $'\t' -k1,1 -k2,2 -k3,3 "$HOME_FILE"
+
+    # Extract headers from the first file
+    HEADERS=$(head -n 1 "$LIFE_FILE")
+    
+    # Append columns from the second file to the headers, excluding the first three columns
+    SECOND_FILE_HEADERS=$(head -n 1 "$GDP_FILE" | cut -f4-)
+    
+    # Combine headers with columns from the second file
+    HEADERS="$HEADERS"$'\t'"$SECOND_FILE_HEADERS"
+
+    # Write headers to the output file
+    echo -e "$HEADERS" > "$OUTPUT_FILE"
+    # # Use awk to join first 2 files 
+    #awk -F'\t' 'NR==FNR {a[$1$2$3]=$0; next} ($1$2$3 in a) {print a[$1$2$3] "\t" substr($0, index($0, $4))}' OFS='\t' "$LIFE_FILE" "$GDP_FILE" | tail -n +2 >> "$OUTPUT_FILE"
+    awk -F'\t' 'NR==FNR {a[$1$2$3]=$0; next} ($1$2$3 in a) {print a[$1$2$3] "\t" ($4 == "" ? "" : $4)}' OFS='\t' "$LIFE_FILE" "$GDP_FILE" | tail -n +2 >> "$OUTPUT_FILE"
+
+    #Append columns from the third file to the headers, excluding the first three columns
+    THIRD_FILE_HEADERS=$(head -n 1 "$HOME_FILE" | cut -f4-)
+    
+    HEADERS="$HEADERS"$'\t'"$THIRD_FILE_HEADERS"
+    echo -e "$HEADERS" > "$FINAL_OUTPUT"
+    # Use awk to join files based on the first three columns
+    awk -F'\t' 'NR==FNR {a[$1$2$3]=$0; next} ($1$2$3 in a) {print a[$1$2$3] "\t" substr($0, index($0, $4))}' OFS='\t' "$OUTPUT_FILE" "$HOME_FILE" | tail -n +2 >> "$FINAL_OUTPUT"
+
     # Check if the file exists and has at least two lines (header + data)
-    if [[ ! -f "final.tsv" ]] || [[ $(wc -l < "final.tsv") -lt 2 ]]; then
+    if [[ ! -f "$FINAL_OUTPUT" ]] || [[ $(wc -l < "$FINAL_OUTPUT") -lt 2 ]]; then
         echo -e "\n\nCleaned Data :\n"
         echo "Error: No data is found !"
         exit 1
     else
         echo -e "\n\nCleaned Data :\n"
         awk 'BEGIN { FS = "\t"; OFS = "\t" }
-                { 
-                    # Trim leading and trailing whitespace from each field
-                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1)
-                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
-                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", $3)
-                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", $8)
-                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", $6)
-                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", $10)
-                    gsub(/^[[:space:]]+|[[:space:]]+$/, "", $4)
+        { 
+            # Trim leading and trailing whitespace from each field
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $1)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $2)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $3)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $6)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $7)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $4)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $8)
+            gsub(/^[[:space:]]+|[[:space:]]+$/, "", $5)
 
-                    # Print the fields
-                    print $1, $2, $3, $8, $6, $10, $4, $7
-                }' final.tsv
+            # Print the fields
+            print $1, $2, $3, $6, $7, $4, $8, $5
+        }' "$FINAL_OUTPUT"
 
     fi
 
-    
+    rm -f "$HOME_FILE" "$GDP_FILE" "$LIFE_FILE" "$FINAL_OUTPUT" "$OUTPUT_FILE"
 
         
 

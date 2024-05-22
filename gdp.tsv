@@ -1,6 +1,7 @@
 Entity	Code	Year	Cantril ladder score	"GDP per capita, PPP (constant 2017 international $)"	Population (historical estimates)	Continent
 Denmark	DNK	2011	7.85574	51293.207	5576016
-Finland	DNH	2020	7.8421	47443.902	5529468	europe
+Finland	DNH	2020	7.8421	47443.902	5529468	europe	hggg
 Monaco	MCO	2019	7.821	48753.355	5535982	europe
 Finland	FIN	2021	7.821	48753.355	5535982	
 Finland	FIN	2050	7.821	48753.355	5535982	
+Macao	MAC	2021		64796.996	686616	

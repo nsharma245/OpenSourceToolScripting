@@ -25,13 +25,12 @@ process_country() {
   local -a homicide_rate=()
   local -a cantril_values_homicide=()
 
-  echo "-------------- $countrycountry ----------"
 
   while IFS=$'\t' read -r entity code year gdp population_val homicide life_exp cantril; do
     
     if [ "$entity" == "$country" ]; then
         cantril=$(echo "$cantril" | sed -e 's/^[[:space:]]*//' -e 's/[[:space:]]*$//')
-        #echo "_____cantril_______ $cantril"
+        
         if [ -n "$cantril" ] && [[ "$cantril" != " " ]]; then
            
             if [ -n "$gdp" ] && [[ "$gdp" != " " ]]; then
@@ -50,8 +49,7 @@ process_country() {
     fi
   done < $2
 
-    #echo "_______________ ${#homicide_rate[@]}"
-    # Check if all arrays have at least 3 data points
+    
     if [ "${#gdp_values[@]}" -ge 3 ] && [ "${#life_expectancy[@]}" -ge 3 ] && [ "${#homicide_rate[@]}" -ge 3 ]; then
         return 0
     else
@@ -171,7 +169,7 @@ compute_cor(){
     life_expectancy_coff_values=()
 
     for country in $countries; do
-        #echo "____________________Calculating corr for  $country ____________________"
+       
         Country_data=$(awk -v country="$country" '$1 == country {print}' <<< "$filtered_data")
         
         #Get all the predictor values
@@ -184,9 +182,7 @@ compute_cor(){
         #Get the count
         n=$(awk -F'\t' '$8 != "" {count++} END {print count}' <<< "$Country_data")
 
-        # country_name=$(awk -F'\t' '{print $1}' <<< "$Country_data")
-        # echo "$name"
-        
+       
         # Get sum of all the predictors
         sum_cantril_score=$(awk -F'\t' '$8 != "" {sum += $8} END {print sum}' <<< "$Country_data")
         sum_gdp=$(awk -F'\t' '$8 != "" {sum += $4} END {print sum}' <<< "$Country_data")
@@ -202,11 +198,8 @@ compute_cor(){
         mean_gdp=$(calculate_mean "$sum_gdp" "$n")
         sum_diff_sqr_gdp=$(calculate_sum_diff_sqr "$gdp" "$mean_gdp")
         numerator=$(calculate_numerator "$gdp" "$cantril_score" "$mean_gdp" "$mean_score")
-        # echo "$numerator"
-        # echo "$sum_diff_sqr_gdp"
-        # echo "$sum_diff_sqr_score"
+       
         coffetaint_gdp_score=$(calculate_pearson_coefficient "$numerator"  "$sum_diff_sqr_gdp" "$sum_diff_sqr_score")
-        #echo "peasron coff for  GDP $country--- $coffetaint_gdp_score"
         gdp_coff_values+=("$coffetaint_gdp_score")
 
         # Calculate for population
@@ -214,7 +207,6 @@ compute_cor(){
         sum_diff_sqr_population=$(calculate_sum_diff_sqr "$population" "$mean_population")
         numerator=$(calculate_numerator "$population" "$cantril_score" "$mean_population" "$mean_score")
         coffetaint_population_score=$(calculate_pearson_coefficient "$numerator"  "$sum_diff_sqr_population" "$sum_diff_sqr_score")
-       # echo "peasron coff for  Population $country--- $coffetaint_population_score"
         population_coff_values+=($coffetaint_population_score)
 
         # Calculate for homicide
@@ -222,7 +214,6 @@ compute_cor(){
         sum_diff_sqr_homicide=$(calculate_sum_diff_sqr "$homicide" "$mean_homicide")
         numerator=$(calculate_numerator "$homicide" "$cantril_score" "$mean_homicide" "$mean_score")
         coffetaint_homicide_score=$(calculate_pearson_coefficient "$numerator"  "$sum_diff_sqr_homicide" "$sum_diff_sqr_score")
-        #echo "peasron coff for Homicide $country--- $coffetaint_homicide_score"
         homicide_coff_values+=($coffetaint_homicide_score)
 
          # Calculate for life_expectancy
@@ -230,13 +221,12 @@ compute_cor(){
         sum_diff_sqr_life_expectancy=$(calculate_sum_diff_sqr "$life_expectancy" "$mean_life_expectancy")
         numerator=$(calculate_numerator "$life_expectancy" "$cantril_score" "$mean_life_expectancy" "$mean_score")
         coffetaint_life_score=$(calculate_pearson_coefficient "$numerator"  "$sum_diff_sqr_life_expectancy" "$sum_diff_sqr_score")
-        #echo "peasron coff for Life Expectancy $country--- $coffetaint_life_score"
         life_expectancy_coff_values+=($coffetaint_life_score)
         
 
         
     done
-    echo "Array elements: ${gdp_coff_values[@]}"
+    
     #calculate mean 
     
     mean_gdp=$(calculate_mean_coff "${gdp_coff_values[@]}")
@@ -271,46 +261,36 @@ if [ $# -ne 1 ]; then
 
 else
     filename=$1
-    echo "$filename"
+
     if check_file_exists "$filename"; then
-        echo "Proceed" 
+        
         unique_countries=$(awk -F'\t' 'NR > 1 {print $1}' "$filename" | sort | uniq)
         
-        echo "$unique_countries"
         #Iterate over each country to check if it has atleast 3 data points
         declare -a successful_countries=()
 
         while IFS=$'\t' read -r country; do
-            # Debugging output to check the loop behavior
-            #echo "------------$country-----------"
-            
+           
             #Add your processing logic here
             if process_country "$country" "$filename"; then
-                echo "YESSSSSSSSSSSS"
                 successful_countries+=("$country")
-            else
-                echo "noooo"
             fi
         done <<< "$unique_countries"
-
-        echo "Successful countries: ${successful_countries[@]}"
         
         
         if [ ${#successful_countries[@]} -ne 0 ]; then
-            echo "All good"
+            
             # Now we will calculate pearson coffetaint
 
             pattern=$(IFS="|"; echo "${successful_countries[*]}")
             filtered_data=$(awk -v pattern="$pattern" '$0 ~ pattern' $filename)
-            echo "$filtered_data"
 
             #create file with filtered data
             echo "$filtered_data" > temp_data_predictor_TEST.tsv
             
             # Extract unique countries from file created
-            countries=$(awk 'NR>1 {print $1}' temp_data.tsv | sort | uniq)
-            echo "$countries"
-
+            countries=$(awk 'NR>1 {print $1}' temp_data_predictor_TEST.tsv | sort | uniq)
+            
             predictors=("GDP" "Population" "Unemployment" "Life_Expectancy" "Score" "Homicide")
 
 
